@@ -3,7 +3,7 @@ Jeep Grand Cheroke WG 2.7CRD diagnostic app
 
 ## Introduction
 
-There doesn't seem to be easy way to get live data from different modules in Grand Cheroke WJ 2.7CRD (a.k.a. Grand Cherokee WG). This is my attempt to create such tool. The initial idea is to be able to read live data from the ECU, like MAF readings, MAP readings, injector corrections and some other bsaic details. The app requires ELM327 or compatible bluetooth OBDII interface (like STN11110 based devices). Fake devices (most of cheap clones) doesn't work as they don't support the required OBDII protocols.
+There doesn't seem to be easy way to get live data from different modules in Grand Cheroke WJ 2.7CRD (a.k.a. Grand Cherokee WG). This is my attempt to create such tool. The initial idea is to be able to read live data from the ECU, like MAF readings, MAP readings, injector corrections and some other bsaic details. The app requires ELM327 or compatible bluetooth OBDII interface (like STN1110 based devices). Fake devices (most of cheap clones) doesn't work as they don't support the required OBDII protocols.
 
 ## Current state
 
