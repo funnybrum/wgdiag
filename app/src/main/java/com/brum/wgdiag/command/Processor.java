@@ -5,15 +5,17 @@ import android.os.Handler;
 import android.os.SystemClock;
 import android.widget.Toast;
 
-import com.brum.wgdiag.activity.utils.DiagDataHandler;
+import com.brum.wgdiag.activity.utils.UIDiagDataHandler;
 import com.brum.wgdiag.activity.utils.ExecutionInterrupter;
 import com.brum.wgdiag.bluetooth.Constants;
 import com.brum.wgdiag.bluetooth.ResponseListener;
 import com.brum.wgdiag.bluetooth.Service;
+import com.brum.wgdiag.command.diag.DataHandler;
 import com.brum.wgdiag.command.diag.DiagCommand;
 import com.brum.wgdiag.command.diag.Field;
 import com.brum.wgdiag.command.diag.Package;
 
+import java.math.BigDecimal;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +55,7 @@ public class Processor {
      * @param handler Handler for updating the UI.
      */
     public static ExecutionInterrupter executeDiagPackage(final Package pkg,
-                                                          final DiagDataHandler handler,
+                                                          final DataHandler handler,
                                                           final Handler errorHandler,
                                                           final Activity activity) {
         final AtomicBoolean interrupt = new AtomicBoolean(false);
@@ -96,9 +98,11 @@ public class Processor {
                                 return;
                             }
                             if (cmd.verifyResponse(response)) {
-                                Map<String, String> data = cmd.parseResponse(response);
-                                for (String key : data.keySet()) {
-                                    handler.handle(key, data.get(key));
+                                Map<String, String> stringData = cmd.parseResponse(response);
+                                Map<String, BigDecimal> decimalData = cmd.parseResponseValues(response);
+                                for (String key : stringData.keySet()) {
+                                    handler.handle(key, stringData.get(key));
+                                    handler.handle(key, decimalData.get(key));
                                 }
                             }
                         }

@@ -7,8 +7,10 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
@@ -18,7 +20,10 @@ import android.widget.Toast;
 
 import com.brum.wgdiag.R;
 import com.brum.wgdiag.command.Processor;
+import com.brum.wgdiag.logger.DiagDataLogger;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,6 +31,7 @@ import java.util.Map;
 
 public class ChooseAdapterActivity extends ListActivity {
     private Map<String, String> bluetoothDevices = new HashMap<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -33,37 +39,37 @@ public class ChooseAdapterActivity extends ListActivity {
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null) {
             new AlertDialog.Builder(this)
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .setMessage("Bluetooth adapter not found!")
-                .setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        finish();
-                    }
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setMessage("Bluetooth adapter not found!")
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
+                        }
 
-                })
-                .show();
+                    })
+                    .show();
             return;
         }
 
         if (!adapter.isEnabled()) {
             new AlertDialog.Builder(this)
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .setMessage("Bluetooth adapter is disabled!")
-                .setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        finish();
-                    }
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setMessage("Bluetooth adapter is disabled!")
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
+                        }
 
-                })
-                .show();
+                    })
+                    .show();
             return;
         }
 
         setContentView(R.layout.list_activity);
 
-        ((TextView)findViewById(R.id.title)).setText("Select OBDII adapter");
+        ((TextView) findViewById(R.id.title)).setText("Select OBDII adapter");
 
         this.bluetoothDevices = new HashMap<>();
         for (BluetoothDevice device : adapter.getBondedDevices()) {

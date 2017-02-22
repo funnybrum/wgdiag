@@ -2,18 +2,24 @@ package com.brum.wgdiag.activity;
 
 import android.app.ListActivity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.brum.wgdiag.R;
 import com.brum.wgdiag.bluetooth.Service;
 import com.brum.wgdiag.command.diag.Package;
 import com.brum.wgdiag.command.diag.Packages;
+import com.brum.wgdiag.logger.DiagDataLogger;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,5 +68,28 @@ public class ChoosePackageActivity extends ListActivity {
     protected void onDestroy() {
         super.onDestroy();
         Service.stop();
+    }
+
+    public void onLogButtonClick(View view) {
+        try {
+            File file = DiagDataLogger.getLogFile(Environment.getExternalStorageDirectory());
+            Uri fileUri = Uri.fromFile(file);
+
+            android.util.Log.d("SS", fileUri.toString());
+
+            Intent sendIntent = new Intent(android.content.Intent.ACTION_SEND);
+            sendIntent.setType("text/plain");
+            sendIntent.putExtra(Intent.EXTRA_SUBJECT, "Log file");
+            sendIntent.putExtra(Intent.EXTRA_TEXT, "The generated log file should be attached.");
+            sendIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            startActivity(Intent.createChooser(sendIntent, "Send e-mail"));
+        } catch (IOException ex) {
+            Toast.makeText(
+                    this,
+                    "Failed to share log file: " + ex.toString(),
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 }

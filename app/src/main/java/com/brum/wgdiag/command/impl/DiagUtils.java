@@ -36,6 +36,15 @@ public class DiagUtils {
         }
 
         @Override
+        public Map<String, BigDecimal> parseResponseValues(String response) {
+            Map<String, BigDecimal> result = new HashMap<>();
+            for (Field field : this.fields) {
+                result.put(field.getKey(), field.toDecimal(response));
+            }
+            return result;
+        }
+
+        @Override
         public List<Field> getDiagFields() {
             return this.fields;
         }

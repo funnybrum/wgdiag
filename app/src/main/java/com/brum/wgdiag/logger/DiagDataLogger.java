@@ -1,11 +1,15 @@
 package com.brum.wgdiag.logger;
 
+import android.os.SystemClock;
+
 import com.brum.wgdiag.command.Command;
 import com.brum.wgdiag.command.diag.DiagCommand;
 import com.brum.wgdiag.command.diag.Field;
 import com.brum.wgdiag.command.diag.Package;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -20,15 +24,20 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Created by brum on 2/21/17.
+ * Dynamically adapting data logger. Creates CSV containing timestamp column and a column for each
+ * logged property.
  */
-
 public class DiagDataLogger {
     private static LinkedHashSet<String> currentCommandFields = new LinkedHashSet<>();
     private static Map<String, String> currentRow = new HashMap<>();
     private static ByteArrayOutputStream file = new ByteArrayOutputStream();
+    private static final long startTime = SystemClock.elapsedRealtime();
 
     public static void setDiagPackage(Package pkg) {
+        boolean emptyFile = false;
+        if (currentCommandFields.isEmpty()) {
+            emptyFile = true;
+        }
         DiagDataLogger.currentCommandFields = new LinkedHashSet<>();
 
         Set<String> processedCommands = new HashSet<>();
@@ -45,7 +54,12 @@ public class DiagDataLogger {
             }
         }
 
-        writeRow(DiagDataLogger.currentCommandFields);
+        if (!emptyFile) {
+            // Put an emtpy line to separate the different data sets.
+            DiagDataLogger.writeRow(null, Collections.<String>emptyList());
+            DiagDataLogger.writeRow(null, Collections.<String>emptyList());
+        }
+        writeRow("timestamp", DiagDataLogger.currentCommandFields);
         DiagDataLogger.currentRow = new HashMap<>();
     }
 
@@ -57,7 +71,9 @@ public class DiagDataLogger {
             for (String key : DiagDataLogger.currentCommandFields) {
                 values.add(DiagDataLogger.currentRow.get(key));
             }
-            writeRow(values);
+            Long timestamp = (SystemClock.elapsedRealtime() - DiagDataLogger.startTime)/100;
+            String ts = new BigDecimal(timestamp).divide(new BigDecimal(10)).toString();
+            writeRow(ts, values);
         }
     }
 
@@ -66,8 +82,15 @@ public class DiagDataLogger {
      *
      * @return the file represented as ASCII encoded byte array.
      */
-    public static byte[] getFile() {
-        return null;
+    public static File getLogFile(File destinationFolder) throws IOException {
+        File logFile = File.createTempFile("log", ".csv", destinationFolder);
+        FileOutputStream logFileOs = new FileOutputStream(logFile);
+        logFileOs.write(DiagDataLogger.file.toByteArray());
+        logFileOs.flush();
+        logFileOs.close();
+        logFile.setReadable(true, false);
+
+        return logFile;
     }
 
     /**
@@ -77,16 +100,19 @@ public class DiagDataLogger {
         DiagDataLogger.file = new ByteArrayOutputStream();
     }
 
-    private static void writeRow(Collection<String> items) {
+    private static void writeRow(String timestampColumnValue, Collection<String> items) {
         try {
+            if (timestampColumnValue != null) {
+                DiagDataLogger.file.write(timestampColumnValue.getBytes());
+                DiagDataLogger.file.write(',');
+            }
             for (String item : items) {
                 DiagDataLogger.file.write(item.getBytes());
                 DiagDataLogger.file.write(',');
             }
             DiagDataLogger.file.write('\n');
-            DiagDataLogger.file.write('\r');
         } catch (IOException ex) {
-            // Ignore.
+            // TODO - ignore for now as we generally should not be seeing such errors.
         }
     }
 }

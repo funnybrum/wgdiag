@@ -4,19 +4,20 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.brum.wgdiag.activity.utils.DiagDataHandler;
+import com.brum.wgdiag.activity.utils.UIDiagDataHandler;
 import com.brum.wgdiag.activity.utils.ExecutionInterrupter;
 import com.brum.wgdiag.command.Processor;
 import com.brum.wgdiag.command.diag.Field;
 import com.brum.wgdiag.command.diag.Package;
 import com.brum.wgdiag.command.diag.Packages;
+import com.brum.wgdiag.command.diag.impl.CompositeDataHandler;
+import com.brum.wgdiag.logger.LoggingDiagDataHandler;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,7 +58,12 @@ public class DiagActivity extends Activity {
             handlers.put(field.getKey(), fieldTextView);
         }
 
-        DiagDataHandler handler = DiagDataHandler.Factory.create(handlers);
+        CompositeDataHandler handler = new CompositeDataHandler();
+        handler.registerHandler("ui", new UIDiagDataHandler(handlers));
+        handler.registerHandler("log", new LoggingDiagDataHandler());
+
+        handler.switchPackage(pkg);
+
         final ExecutionInterrupter interrupter =
                 Processor.executeDiagPackage(pkg, handler, new Handler(), this);
 
