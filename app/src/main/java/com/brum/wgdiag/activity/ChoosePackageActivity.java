@@ -57,4 +57,10 @@ public class ChoosePackageActivity extends ListActivity {
 
         startActivity(switchIntent);
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Service.stop();
+    }
 }
