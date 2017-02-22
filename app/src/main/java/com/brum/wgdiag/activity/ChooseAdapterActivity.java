@@ -7,10 +7,8 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
@@ -20,10 +18,7 @@ import android.widget.Toast;
 
 import com.brum.wgdiag.R;
 import com.brum.wgdiag.command.Processor;
-import com.brum.wgdiag.logger.DiagDataLogger;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,7 +62,7 @@ public class ChooseAdapterActivity extends ListActivity {
             return;
         }
 
-        setContentView(R.layout.list_activity);
+        setContentView(R.layout.choose_adapter_activity);
 
         ((TextView) findViewById(R.id.title)).setText("Select OBDII adapter");
 

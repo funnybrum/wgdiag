@@ -21,9 +21,7 @@ import com.brum.wgdiag.logger.DiagDataLogger;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Activity for selecting what diagnostic package to be executed.
@@ -34,7 +32,7 @@ public class ChoosePackageActivity extends ListActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setContentView(R.layout.list_activity);
+        setContentView(R.layout.choose_packages_activity);
 
         ((TextView)findViewById(R.id.title)).setText("Select diagnostic data");
 
@@ -91,5 +89,9 @@ public class ChoosePackageActivity extends ListActivity {
                     "Failed to share log file: " + ex.toString(),
                     Toast.LENGTH_SHORT).show();
         }
+    }
+
+    public void onBackButton(View view) {
+        finish();
     }
 }

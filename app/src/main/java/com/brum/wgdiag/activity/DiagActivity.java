@@ -1,15 +1,19 @@
 package com.brum.wgdiag.activity;
 
 import android.app.Activity;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.brum.wgdiag.R;
 import com.brum.wgdiag.activity.utils.UIDiagDataHandler;
 import com.brum.wgdiag.activity.utils.ExecutionInterrupter;
 import com.brum.wgdiag.command.Processor;
@@ -41,20 +45,19 @@ public class DiagActivity extends Activity {
             }
         }
 
-        ScrollView sv = new ScrollView(this);
-        LinearLayout ll = new LinearLayout(this);
-        ll.setOrientation(LinearLayout.VERTICAL);
-        sv.addView(ll);
-
-        Map<String, TextView> handlers = new HashMap<>();
-
         if (pkg == null) {
             finish();
             return;
         }
 
+        setContentView(R.layout.diag_activity);
+
+        LinearLayout dataContainer = ((LinearLayout)findViewById(R.id.diag_data_container));
+
+        Map<String, TextView> handlers = new HashMap<>();
+
         for (Field field : pkg.getFields()) {
-            TextView fieldTextView = addControl(ll, field.getKey());
+            TextView fieldTextView = addControl(dataContainer, field.getKey());
             handlers.put(field.getKey(), fieldTextView);
         }
 
@@ -67,24 +70,11 @@ public class DiagActivity extends Activity {
         final ExecutionInterrupter interrupter =
                 Processor.executeDiagPackage(pkg, handler, new Handler(), this);
 
-        synchronized (this) {
-            if (this.interrupter != null) {
-                this.interrupter.interrupt(true);
-            }
-            this.interrupter = interrupter;
+        if (this.interrupter != null) {
+            this.interrupter.interrupt(true);
         }
+        this.interrupter = interrupter;
 
-        Button b = new Button(this);
-        b.setText("Back");
-        b.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                interrupter.interrupt(false); finish();
-            }
-        });
-        ll.addView(b);
-
-        this.setContentView(sv);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
@@ -94,12 +84,15 @@ public class DiagActivity extends Activity {
 
         TextView tv_s = new TextView(this);
         tv_s.setText(title + " : ");
+        tv_s.setTextAppearance(this, android.R.style.TextAppearance_Large);
+
 //        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams)tv_s.getLayoutParams();
 //        lp.width = subContainer.getWidth()/2;
 //        tv_s.setLayoutParams(lp);
 
         TextView tv_v = new TextView(this);
         tv_v.setText("");
+        tv_v.setTextAppearance(this, android.R.style.TextAppearance_Large);
 
         subContainer.addView(tv_s);
         subContainer.addView(tv_v);
@@ -117,5 +110,12 @@ public class DiagActivity extends Activity {
                 interrupter.interrupt(false);
             }
         }
+    }
+
+    public void onBackButton(View view) {
+        if (this.interrupter != null) {
+            this.interrupter.interrupt(true);
+        }
+        finish();
     }
 }
