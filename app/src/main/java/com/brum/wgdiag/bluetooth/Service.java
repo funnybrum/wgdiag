@@ -98,8 +98,8 @@ public class Service {
      */
     public static void write(String command, long timeoutMillis) {
         verifyInitialized();
-        android.util.Log.d("BTSVC > ", command);
         Service.worker.sendCommand(command, timeoutMillis);
+        android.util.Log.d("BTSVC > ", command);
     }
 
     private static void verifyInitialized() {

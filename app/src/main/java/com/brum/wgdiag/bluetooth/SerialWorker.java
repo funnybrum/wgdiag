@@ -8,6 +8,7 @@ import android.os.SystemClock;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.SyncFailedException;
 import java.util.UUID;
 
 /**
@@ -25,13 +26,8 @@ class SerialWorker implements Runnable {
     private boolean stopWorker = false;
     private boolean restart = false;
     private boolean running = false;
-    private Long lastTimeout = 0L;
     private Long nextTimeout = 0L;
-    private String lastCommand = null;
-
-    void setResponseListenerEx(ResponseListenerEx listener) {
-        this.responseListener = listener;
-    }
+    private String currentCommand = null;
 
     SerialWorker(String deviceAddress) {
         this.deviceAddress = deviceAddress;
@@ -86,30 +82,49 @@ class SerialWorker implements Runnable {
     }
 
     void sendCommand(String command, Long timeout) {
-        // TODO - temporary patch for testing purposes
-        SystemClock.sleep(500);
-
         while (this.output == null && timeout > 0) {
             SystemClock.sleep(5);
             timeout -= 5;
         }
 
+        while (this.currentCommand != null && timeout > 0) {
+            SystemClock.sleep(5);
+            timeout -= 5;
+        }
+
         if (timeout <= 0) {
-            sendResponse("", false);
+            if (this.responseListener != null) {
+                this.responseListener.onError(new IOException("Failed to send command."));
+            }
             return;
         }
+
 
         try {
             this.output.write(command.getBytes());
             this.output.write("\n\r".getBytes());
             this.output.flush();
-            this.lastCommand = command;
+            this.currentCommand = command;
         } catch (IOException ex) {
             if (this.responseListener != null) {
                 this.responseListener.onError(ex);
             }
         }
         this.nextTimeout = SystemClock.elapsedRealtime() + timeout;
+    }
+
+    void setResponseListenerEx(ResponseListenerEx listener) {
+        long timeout = 10000;
+        while (this.currentCommand != null && timeout > 0) {
+            SystemClock.sleep(5);
+            timeout -= 5;
+        }
+
+        if (timeout == 0) {
+            throw new RuntimeException("Failed to complete command");
+        }
+
+        this.responseListener = listener;
     }
 
     @Override
@@ -131,7 +146,7 @@ class SerialWorker implements Runnable {
                         data.append(new String(packetBytes));
                     }
                 } catch (IOException ex) {
-                    lastTimeout = nextTimeout;
+                    currentCommand = null;
                     if (this.responseListener != null) {
                         this.responseListener.onError(ex);
                     }
@@ -140,10 +155,10 @@ class SerialWorker implements Runnable {
 
                 if (bytesAvailable > 0) {
                     String trimmed = data.toString().replace("\n", "").replace("\r", "");
-                    if (trimmed.startsWith(this.lastCommand)) {
+                    if (trimmed.startsWith(this.currentCommand)) {
                         // Some adapters have echo enabled by default and always contain the
                         // command in front of the real response. This cleans it up.
-                        trimmed = trimmed.substring(this.lastCommand.length());
+                        trimmed = trimmed.substring(this.currentCommand.length());
                     }
                     if (trimmed.contains("STOPPED")) {
                         // Depending on what the device is doing it may respond with "STOPPED"
@@ -163,14 +178,12 @@ class SerialWorker implements Runnable {
                     data.setLength(0);
                     // data.append(post_response);
 
-                    lastTimeout = nextTimeout;
                     sendResponse(response, true);
                     continue;
                 }
 
                 Long now = SystemClock.elapsedRealtime();
-                if (!lastTimeout.equals(nextTimeout) && now > nextTimeout) {
-                    lastTimeout = nextTimeout;
+                if (currentCommand != null && now > nextTimeout) {
                     sendResponse(data.toString(), false);
                     data.setLength(0);
                 }
@@ -189,6 +202,7 @@ class SerialWorker implements Runnable {
     }
 
     private void sendResponse(String response, boolean isComplete) {
+        this.currentCommand = null;
         if (this.responseListener != null) {
             response = response.replace("\n", "").replace("\r", "");
             try {
