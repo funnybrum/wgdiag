@@ -125,7 +125,7 @@ public class ChooseAdapterActivity extends ListActivity {
                     connectingToast.cancel();
                     Toast.makeText(
                             getApplicationContext(),
-                            "Failed to verify device connection...",
+                            "Failed to verify device.",
                             Toast.LENGTH_LONG).show();
                 }
             }

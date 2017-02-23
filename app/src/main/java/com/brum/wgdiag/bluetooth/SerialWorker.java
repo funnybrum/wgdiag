@@ -8,7 +8,6 @@ import android.os.SystemClock;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.SyncFailedException;
 import java.util.UUID;
 
 /**
@@ -38,9 +37,7 @@ class SerialWorker implements Runnable {
         while (this.running) {
             SystemClock.sleep(5);
         }
-        if (this.responseListener != null) {
-            this.responseListener.onError(new IOException("Stopping bluetooth serial worker..."));
-        }
+        respond(new IOException("Stopping bluetooth serial worker..."));
     }
 
     void restart() {
@@ -48,7 +45,6 @@ class SerialWorker implements Runnable {
     }
 
     private void cleanUp() {
-        android.util.Log.d("SW", "Terminating...");
         if (this.socket != null) {
             try {
                 this.socket.close();
@@ -93,22 +89,16 @@ class SerialWorker implements Runnable {
         }
 
         if (timeout <= 0) {
-            if (this.responseListener != null) {
-                this.responseListener.onError(new IOException("Failed to send command."));
-            }
-            return;
+            throw new RuntimeException("Failed to send command...");
         }
 
-
         try {
+            this.currentCommand = command;
             this.output.write(command.getBytes());
             this.output.write("\n\r".getBytes());
             this.output.flush();
-            this.currentCommand = command;
         } catch (IOException ex) {
-            if (this.responseListener != null) {
-                this.responseListener.onError(ex);
-            }
+            respond(ex);
         }
         this.nextTimeout = SystemClock.elapsedRealtime() + timeout;
     }
@@ -129,6 +119,7 @@ class SerialWorker implements Runnable {
 
     @Override
     public void run() {
+        android.util.Log.d("SW", "Starting...");
         running = true;
         StringBuilder data = new StringBuilder();
         try {
@@ -137,20 +128,11 @@ class SerialWorker implements Runnable {
                     initIO();
                 }
 
-                int bytesAvailable = 0;
-                try {
-                    bytesAvailable = this.input.available();
-                    if (bytesAvailable > 0) {
-                        byte[] packetBytes = new byte[bytesAvailable];
-                        this.input.read(packetBytes);
-                        data.append(new String(packetBytes));
-                    }
-                } catch (IOException ex) {
-                    currentCommand = null;
-                    if (this.responseListener != null) {
-                        this.responseListener.onError(ex);
-                    }
-                    continue;
+                int bytesAvailable = this.input.available();
+                if (bytesAvailable > 0) {
+                    byte[] packetBytes = new byte[bytesAvailable];
+                    this.input.read(packetBytes);
+                    data.append(new String(packetBytes));
                 }
 
                 if (bytesAvailable > 0) {
@@ -162,7 +144,8 @@ class SerialWorker implements Runnable {
                     }
                     if (trimmed.contains("STOPPED")) {
                         // Depending on what the device is doing it may respond with "STOPPED"
-                        // indicating that an action is interrupted.
+                        // indicating that an action is interrupted. This doesn't bring any
+                        // useful information for our use case. So - ignore it.
                         trimmed = trimmed.replace("STOPPED", "");
                     }
                     data.setLength(0);
@@ -171,37 +154,41 @@ class SerialWorker implements Runnable {
 
                 String current = data.toString();
                 if (current.contains(">")) {
-                    // Extract all data before the first '>' char and remove it from the
-                    // buffer.
+                    // Extract all data before the first '>' char and use it as response.
                     String response = current.substring(0, current.indexOf('>'));
-                    // String post_response = current.substring(current.indexOf('>') + 1);
                     data.setLength(0);
-                    // data.append(post_response);
 
-                    sendResponse(response, true);
+                    respond(response, true);
                     continue;
                 }
 
                 Long now = SystemClock.elapsedRealtime();
                 if (currentCommand != null && now > nextTimeout) {
-                    sendResponse(data.toString(), false);
+                    respond(data.toString(), false);
                     data.setLength(0);
                 }
 
                 SystemClock.sleep(20);
             }
         } catch (Exception ex) {
-            ResponseListenerEx listener = this.responseListener;
-            if (listener != null) {
-                listener.onError(ex);
-            }
+            respond(ex);
         } finally {
             running = false;
             android.util.Log.d(this.getClass().getSimpleName(), "Worker stopped");
         }
     }
 
-    private void sendResponse(String response, boolean isComplete) {
+    /**
+     * Send the specified response to the listener if there is a command currently executing.
+     * @param response
+     * @param isComplete
+     */
+    private void respond(String response, boolean isComplete) {
+        if (this.currentCommand == null) {
+            // No command was send, no need for posting a replay.
+            return;
+        }
+
         this.currentCommand = null;
         if (this.responseListener != null) {
             response = response.replace("\n", "").replace("\r", "");
@@ -213,7 +200,28 @@ class SerialWorker implements Runnable {
                 }
             } catch (RuntimeException ex) {
                 android.util.Log.d(this.getClass().getSimpleName(),
-                                  "Got exception for " + response + ": " + ex.toString());
+                                  "Got exception for " + response + " -> " + ex.toString());
+            }
+        }
+    }
+
+    /**
+     * Send an error response to the current listener if there is a command currently executing.
+     * @param error the error to be send.
+     */
+    private void respond(Exception error) {
+        if (this.currentCommand == null) {
+            // No command was send, no need for posting an error.
+            return;
+        }
+
+        this.currentCommand = null;
+        if (this.responseListener != null) {
+            try {
+                responseListener.onError(error);
+            } catch (RuntimeException ex) {
+                android.util.Log.d(this.getClass().getSimpleName(),
+                        "Got exception on .onError() -> " + ex.toString());
             }
         }
     }
@@ -222,7 +230,7 @@ class SerialWorker implements Runnable {
     private void initIO() {
         cleanUp();
 
-        android.util.Log.d("SW", "Starting...");
+        android.util.Log.d("SW", "Initializing...");
 
         try {
             this.device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(this.deviceAddress);
@@ -231,11 +239,10 @@ class SerialWorker implements Runnable {
             this.socket.connect();
             this.output = this.socket.getOutputStream();
             this.input = this.socket.getInputStream();
+            android.util.Log.d("SW", "Initialization completed.");
         } catch (Exception ex) {
-            ResponseListenerEx listener = this.responseListener;
-            if (listener != null) {
-                listener.onError(ex);
-            }
+            android.util.Log.d("SW", "Failed to initialize: " + ex.getMessage());
+            respond(ex);
         }
     }
 }
