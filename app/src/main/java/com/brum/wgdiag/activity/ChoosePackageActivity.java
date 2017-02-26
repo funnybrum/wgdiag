@@ -67,8 +67,6 @@ public class ChoosePackageActivity extends ListActivity {
             File file = DiagDataLogger.getLogFile(Environment.getExternalStorageDirectory());
             Uri fileUri = Uri.fromFile(file);
 
-            android.util.Log.d("SS", fileUri.toString());
-
             Intent sendIntent = new Intent(android.content.Intent.ACTION_SEND);
             sendIntent.setType("text/plain");
             sendIntent.putExtra(Intent.EXTRA_SUBJECT, "Log file");

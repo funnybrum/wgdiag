@@ -1,6 +1,7 @@
 package com.brum.wgdiag.logger;
 
 import android.os.SystemClock;
+import android.util.Log;
 
 import com.brum.wgdiag.command.Command;
 import com.brum.wgdiag.command.diag.DiagCommand;
@@ -112,7 +113,7 @@ public class DiagDataLogger {
             }
             DiagDataLogger.file.write('\n');
         } catch (IOException ex) {
-            android.util.Log.d("DDL", "Got ignored exception", ex);
+            Log.d(DiagDataLogger.class.getSimpleName(), "Ignored exception.", ex);
         }
     }
 }

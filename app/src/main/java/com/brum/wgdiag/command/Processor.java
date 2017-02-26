@@ -3,6 +3,7 @@ package com.brum.wgdiag.command;
 import android.app.Activity;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.brum.wgdiag.activity.utils.ExecutionInterrupter;
@@ -34,7 +35,7 @@ public class Processor {
      * @return true iff all commands are executed and responses are as expected.
      */
     public static boolean verifyDevice(String address) {
-        android.util.Log.d("SS", "Verifying device...");
+        Log.d(Processor.class.getSimpleName(), "Verifying device...");
         Service.init(address);
 
         List<Command> initCommands = Constants.VERIFY_DEVICE_COMMANDS;
