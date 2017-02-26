@@ -280,7 +280,7 @@ class SerialWorker implements Runnable {
             }
             return bytesAvailable;
         } catch (IOException ex) {
-            gLog.d(
+            Log.d(
                 this.getClass().getSimpleName(),
                 "Got exception while reading the bluetooth serial input stream.",
                 ex);
