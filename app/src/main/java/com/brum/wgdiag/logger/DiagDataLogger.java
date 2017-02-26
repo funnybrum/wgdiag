@@ -112,7 +112,7 @@ public class DiagDataLogger {
             }
             DiagDataLogger.file.write('\n');
         } catch (IOException ex) {
-            // TODO - ignore for now as we generally should not be seeing such errors.
+            android.util.Log.d("DDL", "Got ignored exception", ex);
         }
     }
 }

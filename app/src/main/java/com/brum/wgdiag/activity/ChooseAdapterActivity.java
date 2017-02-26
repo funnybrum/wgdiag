@@ -9,6 +9,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
@@ -18,6 +19,7 @@ import android.widget.Toast;
 
 import com.brum.wgdiag.R;
 import com.brum.wgdiag.command.Processor;
+import com.brum.wgdiag.util.Executor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,6 +32,7 @@ public class ChooseAdapterActivity extends ListActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Executor.start();
 
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null) {
@@ -39,7 +42,7 @@ public class ChooseAdapterActivity extends ListActivity {
                     .setPositiveButton("OK", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            finish();
+                            finishAffinity();
                         }
 
                     })
@@ -54,7 +57,7 @@ public class ChooseAdapterActivity extends ListActivity {
                     .setPositiveButton("OK", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            finish();
+                            finishAffinity();
                         }
 
                     })
@@ -103,8 +106,7 @@ public class ChooseAdapterActivity extends ListActivity {
                 try {
                     result = Processor.verifyDevice(adapterAddress);
                 } catch (Exception e) {
-                    android.util.Log.d("CAA", e.getMessage());
-                    android.util.Log.d("CAA", e.toString());
+                    Log.d(ChooseAdapterActivity.class.getSimpleName(), "Got exception", e);
                 }
                 return result;
             }
@@ -131,5 +133,13 @@ public class ChooseAdapterActivity extends ListActivity {
             }
         }.execute();
 
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (isFinishing()) {
+            Executor.stop();
+        }
     }
 }

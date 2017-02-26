@@ -5,15 +5,16 @@ import android.os.Handler;
 import android.os.SystemClock;
 import android.widget.Toast;
 
-import com.brum.wgdiag.activity.utils.UIDiagDataHandler;
 import com.brum.wgdiag.activity.utils.ExecutionInterrupter;
 import com.brum.wgdiag.bluetooth.Constants;
 import com.brum.wgdiag.bluetooth.ResponseListener;
+import com.brum.wgdiag.bluetooth.ResponseListenerEx;
 import com.brum.wgdiag.bluetooth.Service;
 import com.brum.wgdiag.command.diag.DataHandler;
 import com.brum.wgdiag.command.diag.DiagCommand;
 import com.brum.wgdiag.command.diag.Field;
 import com.brum.wgdiag.command.diag.Package;
+import com.brum.wgdiag.util.Executor;
 
 import java.math.BigDecimal;
 import java.util.Iterator;
@@ -33,8 +34,8 @@ public class Processor {
      * @return true iff all commands are executed and responses are as expected.
      */
     public static boolean verifyDevice(String address) {
-        Service.stop();
-        Service.start(address);
+        android.util.Log.d("SS", "Verifying device...");
+        Service.init(address);
 
         List<Command> initCommands = Constants.VERIFY_DEVICE_COMMANDS;
 
@@ -60,37 +61,45 @@ public class Processor {
                                                           final Activity activity) {
         final AtomicBoolean interrupt = new AtomicBoolean(false);
 
-        final Thread thread = new Thread(new Runnable() {
+        final Runnable processorRunnable = new Runnable() {
             @Override
             public void run() {
-                for (final Command cmd : pkg.getInitCommands()) {
-                    ExecResult result = execAndVerify(cmd, interrupt);
-
-                    if (result == ExecResult.FAILURE) {
-                        errorHandler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(
-                                        activity,
-                                        "Failed on " + cmd.getRequestCommand() + ", aborting.",
-                                        Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                        activity.finish();
-                        return;
-                    } else if (result == ExecResult.INTERRUPTED) {
-                        break;
-                    }
-                }
-
-                Iterator<DiagCommand> iterator = pkg.getCommandIterator();
+                final AtomicBoolean initiliazed = new AtomicBoolean(false);
                 final AtomicBoolean executed = new AtomicBoolean(false);
+                Iterator<DiagCommand> iterator = pkg.getCommandIterator();
 
                 while (!interrupt.get()) {
+                    if (initiliazed.get() == false) {
+                        for (final Command cmd : pkg.getInitCommands()) {
+                            ExecResult result = execAndVerify(cmd, interrupt);
+
+                            if (result == ExecResult.FAILURE) {
+                                errorHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(
+                                                activity,
+                                                "Failed on " + cmd.getRequestCommand() + ", aborting.",
+                                                Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                                activity.finish();
+                                return;
+                            } else if (result == ExecResult.INTERRUPTED) {
+                                break;
+                            }
+                        }
+                        initiliazed.set(true);
+                    }
+
+                    if (interrupt.get()) {
+                        break;
+                    }
+
                     final DiagCommand cmd = iterator.next();
                     executed.set(false);
 
-                    Service.setResponseListener(new ResponseListener() {
+                    Service.setResponseListener(new ResponseListenerEx() {
                         @Override
                         public void onResponse(String response) {
                             executed.set(true);
@@ -115,7 +124,13 @@ public class Processor {
                             }
                             for (Field field : cmd.getDiagFields()) {
                                 handler.handle(field.getKey(), "NA");
+                                handler.handle(field.getKey(), BigDecimal.ZERO);
                             }
+                        }
+
+                        @Override
+                        public void onError(Exception ex) {
+                            initiliazed.set(false);
                         }
                     });
 
@@ -125,15 +140,19 @@ public class Processor {
                     }
                 }
             }
-        });
 
-        thread.start();
+            public void stop() {
+                interrupt.set(true);
+            }
+        };
+
+        Executor.execute(processorRunnable);
 
         return new ExecutionInterrupter() {
             @Override
             public void interrupt(boolean block) {
                 interrupt.set(true);
-                while (block && thread.isAlive()) {
+                while (block && Executor.isRunning(processorRunnable)) {
                     SystemClock.sleep(10);
                 }
             }

@@ -62,12 +62,6 @@ public class ChoosePackageActivity extends ListActivity {
         startActivity(switchIntent);
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        Service.stop();
-    }
-
     public void onLogButtonClick(View view) {
         try {
             File file = DiagDataLogger.getLogFile(Environment.getExternalStorageDirectory());

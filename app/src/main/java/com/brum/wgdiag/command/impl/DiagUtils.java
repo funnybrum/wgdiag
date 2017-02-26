@@ -76,7 +76,11 @@ public class DiagUtils {
 
             @Override
             public BigDecimal toDecimal(String response) {
-                return new BigDecimal(response.replaceAll("[^\\d.]", ""));
+                try {
+                    return new BigDecimal(response.replaceAll("[^\\d.]", ""));
+                } catch (Exception e) {
+                    return new BigDecimal(0);
+                }
             }
         };
     }

@@ -4,10 +4,14 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.os.SystemClock;
+import android.util.Log;
+
+import com.brum.wgdiag.util.Executor;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.util.UUID;
 
 /**
@@ -37,6 +41,7 @@ class SerialWorker implements Runnable {
         while (this.running) {
             SystemClock.sleep(5);
         }
+        cleanUp();
         respond(new IOException("Stopping bluetooth serial worker..."));
     }
 
@@ -48,8 +53,8 @@ class SerialWorker implements Runnable {
         if (this.socket != null) {
             try {
                 this.socket.close();
-            } catch (IOException e) {
-                // Ignore.
+            } catch (IOException ex) {
+                Log.d(this.getClass().getSimpleName(), "Got ignored exception", ex);
             } finally {
                 this.socket = null;
             }
@@ -59,7 +64,7 @@ class SerialWorker implements Runnable {
             try {
                 this.input.close();
             } catch (IOException ex) {
-                // ignore.
+                Log.d(this.getClass().getSimpleName(), "Got ignored exception", ex);
             } finally {
                 this.input = null;
             }
@@ -69,7 +74,7 @@ class SerialWorker implements Runnable {
             try {
                 this.output.close();
             } catch (IOException ex) {
-                // Ignore.
+                Log.d(this.getClass().getSimpleName(), "Got ignored exception", ex);
             } finally {
                 this.output = null;
             }
@@ -77,30 +82,48 @@ class SerialWorker implements Runnable {
         this.restart = false;
     }
 
-    void sendCommand(String command, Long timeout) {
-        while (this.output == null && timeout > 0) {
-            SystemClock.sleep(5);
-            timeout -= 5;
-        }
+    /**
+     * Write the provided command over the bluetooth serial output stream.
+     *
+     * The command is written in non-blocking manner in another thread.
+     *
+     * If there is a command that is being executed currently - this command will be blocked until
+     * that command is completed/timed out.
+     * @param command the command to be written.
+     * @param timeout the timeout in milliseconds for the command to be executed.
+     */
+    void sendCommand(final String command, final Long timeout) {
+        Executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                long sendCommandTimeout = 10000;
+                while (SerialWorker.this.output == null && sendCommandTimeout > 0) {
+                    SystemClock.sleep(5);
+                    sendCommandTimeout -= 5;
+                }
 
-        while (this.currentCommand != null && timeout > 0) {
-            SystemClock.sleep(5);
-            timeout -= 5;
-        }
+                while (SerialWorker.this.currentCommand != null && sendCommandTimeout > 0) {
+                    SystemClock.sleep(5);
+                    sendCommandTimeout -= 5;
+                }
 
-        if (timeout <= 0) {
-            throw new RuntimeException("Failed to send command...");
-        }
+                if (sendCommandTimeout <= 0) {
+                    // We should not be getting here. If we do - there is no way currently to handle
+                    // this - so just throw an exception.
+                    throw new RuntimeException("Failed to send command...");
+                }
 
-        try {
-            this.currentCommand = command;
-            this.output.write(command.getBytes());
-            this.output.write("\n\r".getBytes());
-            this.output.flush();
-        } catch (IOException ex) {
-            respond(ex);
-        }
-        this.nextTimeout = SystemClock.elapsedRealtime() + timeout;
+                try {
+                    SerialWorker.this.currentCommand = command;
+                    SerialWorker.this.output.write(command.getBytes());
+                    SerialWorker.this.output.write("\n\r".getBytes());
+                    SerialWorker.this.output.flush();
+                } catch (IOException ex) {
+                    respond(ex);
+                }
+                SerialWorker.this.nextTimeout = SystemClock.elapsedRealtime() + timeout;
+            }
+        });
     }
 
     void setResponseListenerEx(ResponseListenerEx listener) {
@@ -119,130 +142,185 @@ class SerialWorker implements Runnable {
 
     @Override
     public void run() {
-        android.util.Log.d("SW", "Starting...");
+        Log.d(this.getClass().getSimpleName(), "Starting...");
         running = true;
-        StringBuilder data = new StringBuilder();
+        StringBuilder buffer = new StringBuilder();
         try {
             while (!Thread.currentThread().isInterrupted() && !stopWorker) {
+                // Check if we've hit a timeout
+                Long now = SystemClock.elapsedRealtime();
+                if (currentCommand != null && now > nextTimeout) {
+                    respond(buffer.toString(), false);
+                    buffer.setLength(0);
+                }
+
+                // Check if the serial IO is initialized.
                 if (this.input == null || this.output == null || this.restart) {
                     initIO();
                 }
 
-                int bytesAvailable = this.input.available();
-                if (bytesAvailable > 0) {
-                    byte[] packetBytes = new byte[bytesAvailable];
-                    this.input.read(packetBytes);
-                    data.append(new String(packetBytes));
-                }
-
-                if (bytesAvailable > 0) {
-                    String trimmed = data.toString().replace("\n", "").replace("\r", "");
-                    if (trimmed.startsWith(this.currentCommand)) {
-                        // Some adapters have echo enabled by default and always contain the
-                        // command in front of the real response. This cleans it up.
-                        trimmed = trimmed.substring(this.currentCommand.length());
+                // Try to read the available data from the serial input stream, trim it and try to
+                // parse response from it.
+                if (this.input != null) {
+                    int bytesAvailable = readSerialData(buffer);
+                    if (bytesAvailable > 0) {
+                        trimSerialData(buffer);
+                        checkForResponse(buffer);
                     }
-                    if (trimmed.contains("STOPPED")) {
-                        // Depending on what the device is doing it may respond with "STOPPED"
-                        // indicating that an action is interrupted. This doesn't bring any
-                        // useful information for our use case. So - ignore it.
-                        trimmed = trimmed.replace("STOPPED", "");
-                    }
-                    data.setLength(0);
-                    data.append(trimmed);
-                }
-
-                String current = data.toString();
-                if (current.contains(">")) {
-                    // Extract all data before the first '>' char and use it as response.
-                    String response = current.substring(0, current.indexOf('>'));
-                    data.setLength(0);
-
-                    respond(response, true);
-                    continue;
-                }
-
-                Long now = SystemClock.elapsedRealtime();
-                if (currentCommand != null && now > nextTimeout) {
-                    respond(data.toString(), false);
-                    data.setLength(0);
                 }
 
                 SystemClock.sleep(20);
             }
-        } catch (Exception ex) {
-            respond(ex);
         } finally {
             running = false;
-            android.util.Log.d(this.getClass().getSimpleName(), "Worker stopped");
+            Log.d(this.getClass().getSimpleName(), "Worker stopped");
         }
     }
 
     /**
      * Send the specified response to the listener if there is a command currently executing.
-     * @param response
-     * @param isComplete
+     *
+     * The respons is send in non-blocking manner in another thread.
+     * @param response the response
+     * @param isComplete true iff the response is complete. False if we've hit timeout and there
+     *                   is some available data that is being send as response.
      */
-    private void respond(String response, boolean isComplete) {
+    private void respond(final String response, final boolean isComplete) {
         if (this.currentCommand == null) {
             // No command was send, no need for posting a replay.
             return;
         }
-
         this.currentCommand = null;
-        if (this.responseListener != null) {
-            response = response.replace("\n", "").replace("\r", "");
-            try {
-                if (isComplete) {
-                    responseListener.onResponse(response);
-                } else {
-                    responseListener.onIncompleteResponse(response);
+
+        Executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (SerialWorker.this.responseListener != null) {
+                    String re = response.replace("\n", "").replace("\r", "");
+                    try {
+                        if (isComplete) {
+                            responseListener.onResponse(re);
+                        } else {
+                            responseListener.onIncompleteResponse(re);
+                        }
+                    } catch (RuntimeException ex) {
+                        Log.d(this.getClass().getSimpleName(),
+                                "Got exception for " + re, ex);
+                    }
                 }
-            } catch (RuntimeException ex) {
-                android.util.Log.d(this.getClass().getSimpleName(),
-                                  "Got exception for " + response + " -> " + ex.toString());
             }
-        }
+        });
     }
 
     /**
      * Send an error response to the current listener if there is a command currently executing.
+     *
+     * The error is send in non-blocking manner in another thread.
      * @param error the error to be send.
      */
-    private void respond(Exception error) {
+    private void respond(final Exception error) {
         if (this.currentCommand == null) {
             // No command was send, no need for posting an error.
             return;
         }
-
         this.currentCommand = null;
-        if (this.responseListener != null) {
-            try {
-                responseListener.onError(error);
-            } catch (RuntimeException ex) {
-                android.util.Log.d(this.getClass().getSimpleName(),
-                        "Got exception on .onError() -> " + ex.toString());
-            }
-        }
-    }
 
+        Executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (SerialWorker.this.responseListener != null) {
+                    Log.d(this.getClass().getSimpleName(), "Responding with error", error);
+                    try {
+                        responseListener.onError(error);
+                    } catch (RuntimeException ex) {
+                        Log.d(this.getClass().getSimpleName(),
+                                "Got exception on .onError()", ex);
+                    }
+                }
+            }
+        });
+    }
 
     private void initIO() {
         cleanUp();
 
-        android.util.Log.d("SW", "Initializing...");
+        Log.d(this.getClass().getSimpleName(), "Initializing bluetooth serial connection.");
 
         try {
             this.device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(this.deviceAddress);
-            UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"); //Standard SerialPortService ID
-            this.socket = this.device.createRfcommSocketToServiceRecord(uuid);
+            //Standard SerialPortService ID
+            UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+            SystemClock.sleep(1);
+            try {
+                this.socket = this.device.createInsecureRfcommSocketToServiceRecord(uuid);
+            } catch (IOException ex) {
+                Method createMethod = device.getClass()
+                        .getMethod("createInsecureRfcommSocket", new Class[] { int.class });
+                this.socket = (BluetoothSocket)createMethod.invoke(device, 1);
+            }
             this.socket.connect();
             this.output = this.socket.getOutputStream();
             this.input = this.socket.getInputStream();
-            android.util.Log.d("SW", "Initialization completed.");
+            Log.d(this.getClass().getSimpleName(), "Initialization completed, connection established.");
         } catch (Exception ex) {
-            android.util.Log.d("SW", "Failed to initialize: " + ex.getMessage());
-            respond(ex);
+            Log.e(
+                    this.getClass().getSimpleName(),
+                    "Failed to establish bluetooth serial connection.",
+                    ex);
         }
+    }
+
+    private int readSerialData(StringBuilder buffer) {
+        try {
+            int bytesAvailable = this.input.available();
+            if (bytesAvailable > 0) {
+                byte[] packetBytes = new byte[bytesAvailable];
+                this.input.read(packetBytes);
+                buffer.append(new String(packetBytes));
+            }
+            return bytesAvailable;
+        } catch (IOException ex) {
+            Log.d(
+                this.getClass().getSimpleName(),
+                "Got exception while reading the bluetooth serial input stream.",
+                ex);
+            cleanUp();
+        }
+        return 0;
+    }
+
+    private void trimSerialData(StringBuilder buffer) {
+        String trimmed = buffer.toString().replace("\n", "").replace("\r", "");
+        if (this.currentCommand != null && trimmed.startsWith(this.currentCommand)) {
+            // Some adapters have echo enabled by default and always contain the
+            // command in front of the real response. This cleans it up.
+            trimmed = trimmed.substring(this.currentCommand.length());
+        }
+        if (trimmed.contains("STOPPED")) {
+            // Depending on what the device is doing it may respond with "STOPPED"
+            // indicating that an action is interrupted. This doesn't bring any
+            // useful information for our use case. So - ignore it.
+            trimmed = trimmed.replace("STOPPED", "");
+        }
+        buffer.setLength(0);
+        buffer.append(trimmed);
+    }
+
+    private void checkForResponse(StringBuilder data) {
+        String current = data.toString();
+        if (current.contains(">")) {
+            // Extract all data before the first '>' char and use it as response.
+            String response = current.substring(0, current.indexOf('>'));
+
+            // Empty the buffer. SerialWorker is working with only one command at time, so any
+            // excessive data here can be purged without side effects.
+            data.setLength(0);
+
+            respond(response, true);
+        }
+    }
+
+    public boolean isRunning() {
+        return this.running;
     }
 }
