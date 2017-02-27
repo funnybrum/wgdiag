@@ -17,6 +17,7 @@ import com.brum.wgdiag.bluetooth.Service;
 import com.brum.wgdiag.command.diag.Package;
 import com.brum.wgdiag.command.diag.Packages;
 import com.brum.wgdiag.logger.DiagDataLogger;
+import com.brum.wgdiag.util.Executor;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +32,7 @@ public class ChoosePackageActivity extends ListActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Executor.bind(this);
 
         setContentView(R.layout.choose_packages_activity);
 

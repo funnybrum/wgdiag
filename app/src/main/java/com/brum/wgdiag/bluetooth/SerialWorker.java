@@ -96,7 +96,7 @@ class SerialWorker implements Runnable {
         Executor.execute(new Runnable() {
             @Override
             public void run() {
-                long sendCommandTimeout = 10000;
+                long sendCommandTimeout = timeout;
                 while (SerialWorker.this.output == null && sendCommandTimeout > 0) {
                     SystemClock.sleep(5);
                     sendCommandTimeout -= 5;
@@ -110,7 +110,9 @@ class SerialWorker implements Runnable {
                 if (sendCommandTimeout <= 0) {
                     // We should not be getting here. If we do - there is no way currently to handle
                     // this - so just throw an exception.
-                    throw new RuntimeException("Failed to send command...");
+                    SerialWorker.this.currentCommand = command;
+                    respond(new RuntimeException("Failed to send command..."));
+                    return;
                 }
 
                 try {

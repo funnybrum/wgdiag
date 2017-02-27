@@ -31,7 +31,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Processor {
 
     /**
-     * Block and execute the init commands.
+     * Block and execute the init commands. If device is not connected or the device verification
+     * fails - stop the SerialWorker (it is no longer needed in such cases).
      * @return true iff all commands are executed and responses are as expected.
      */
     public static boolean verifyDevice(String address) {
@@ -42,6 +43,7 @@ public class Processor {
 
         for (final Command cmd : initCommands) {
             if (execAndVerify(cmd, null) != ExecResult.SUCCESS) {
+                Service.stop();
                 return false;
             }
         }
@@ -171,12 +173,15 @@ public class Processor {
         Service.setResponseListener(new ResponseListener() {
             @Override
             public void onResponse(String response) {
+                Log.d("Processor", "onResponse()");
                 success.set(cmd.verifyResponse(response));
                 executed.set(true);
             }
 
             @Override
             public void onIncompleteResponse(String response) {
+                Log.d("Processor", "onImcompleteResponse()");
+
                 success.set(false);
                 executed.set(true);
             }

@@ -30,6 +30,15 @@ public class Service {
         Executor.execute(Service.worker);
     }
 
+    public static void stop() {
+        if (Service.worker == null) {
+            return;
+        }
+
+        worker.stop();
+
+    }
+
     /**
      * Set the response listener. This listener will receive the next response.
      *
@@ -56,6 +65,8 @@ public class Service {
                 Service.worker.restart();
                 if (listener instanceof ResponseListenerEx) {
                     ((ResponseListenerEx)listener).onError(ex);
+                } else {
+                    listener.onIncompleteResponse("");
                 }
             }
         });

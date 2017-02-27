@@ -32,7 +32,7 @@ public class ChooseAdapterActivity extends ListActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Executor.start();
+        Executor.bind(this);
 
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null) {
@@ -133,13 +133,5 @@ public class ChooseAdapterActivity extends ListActivity {
             }
         }.execute();
 
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (isFinishing()) {
-            Executor.stop();
-        }
     }
 }

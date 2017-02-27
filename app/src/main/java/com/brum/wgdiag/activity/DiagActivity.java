@@ -22,6 +22,7 @@ import com.brum.wgdiag.command.diag.Package;
 import com.brum.wgdiag.command.diag.Packages;
 import com.brum.wgdiag.command.diag.impl.CompositeDataHandler;
 import com.brum.wgdiag.logger.LoggingDiagDataHandler;
+import com.brum.wgdiag.util.Executor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +35,7 @@ public class DiagActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Executor.bind(this);
 
         String pkgName = (String)this.getIntent().getExtras().get(ACTIVITY_EXTRA_PACKAGE_NAME);
         Package pkg = null;
