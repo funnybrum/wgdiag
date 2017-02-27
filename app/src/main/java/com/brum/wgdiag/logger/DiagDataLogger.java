@@ -32,14 +32,22 @@ public class DiagDataLogger {
     private static LinkedHashSet<String> currentCommandFields = new LinkedHashSet<>();
     private static Map<String, String> currentRow = new HashMap<>();
     private static ByteArrayOutputStream file = new ByteArrayOutputStream();
+    private static Package currentPackage = null;
     private static final long startTime = SystemClock.elapsedRealtime();
 
     public static void setDiagPackage(Package pkg) {
         boolean emptyFile = false;
+        if (pkg == DiagDataLogger.currentPackage) {
+            // This can be caused by screen rotation. And screen rorations shouldn't interrupt the
+            // sequential log file.
+            return;
+        }
+
         if (currentCommandFields.isEmpty()) {
             emptyFile = true;
         }
         DiagDataLogger.currentCommandFields = new LinkedHashSet<>();
+        DiagDataLogger.currentPackage = pkg;
 
         Set<String> processedCommands = new HashSet<>();
         Iterator<DiagCommand> cmdIter = pkg.getCommandIterator();

@@ -255,12 +255,13 @@ class SerialWorker implements Runnable {
             SystemClock.sleep(1);
             try {
                 this.socket = this.device.createInsecureRfcommSocketToServiceRecord(uuid);
+                this.socket.connect();
             } catch (IOException ex) {
                 Method createMethod = device.getClass()
                         .getMethod("createInsecureRfcommSocket", new Class[] { int.class });
                 this.socket = (BluetoothSocket)createMethod.invoke(device, 1);
+                this.socket.connect();
             }
-            this.socket.connect();
             this.output = this.socket.getOutputStream();
             this.input = this.socket.getInputStream();
             Log.d(this.getClass().getSimpleName(), "Initialization completed, connection established.");
