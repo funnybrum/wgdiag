@@ -112,6 +112,7 @@ public class DiagActivity extends Activity {
                 interrupter.interrupt(false);
             }
         }
+        Executor.unbind(this);
     }
 
     public void onBackButton(View view) {

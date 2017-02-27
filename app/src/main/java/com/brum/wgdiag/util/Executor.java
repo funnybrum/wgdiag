@@ -87,6 +87,10 @@ public class Executor {
         }
     }
 
+    public static void unbind(Activity activity) {
+        Executor.references.remove(activity);
+    }
+
     public static void execute(Runnable runnable) {
         executor.execute(runnable);
     }

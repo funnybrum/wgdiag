@@ -134,4 +134,10 @@ public class ChooseAdapterActivity extends ListActivity {
         }.execute();
 
     }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Executor.unbind(this);
+    }
 }

@@ -88,4 +88,10 @@ public class ChoosePackageActivity extends ListActivity {
     public void onBackButton(View view) {
         finish();
     }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Executor.unbind(this);
+    }
 }
